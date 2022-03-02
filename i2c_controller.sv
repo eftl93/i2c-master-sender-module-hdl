@@ -6,13 +6,13 @@ module i2c_controller(	input	 logic i_clk,
 								input	 logic i_read_or_write,
 								input  logic [2:0]i_word_cnt,
 								inout	 logic o_scl,
-								inout	 logic o_sda,
-								output logic [7:0]o_data_read,
-								output logic o_finished);
+								inout	 logic o_sda
+								);
 								
 typedef enum logic [3:0] {	IDLE,
 									START1,
 									START2,
+									START3,
 									TRANS1,
 									TRANS2,
 									TRANS3,
@@ -34,7 +34,7 @@ state_type next_state;
 
 logic [2:0]current_word_cntr, next_word_cntr;
 logic current_ack, next_ack;
-logic [7:0]current_bit_cntr, next_bit_cntr;
+logic [3:0]current_bit_cntr, next_bit_cntr;
 logic current_addr_or_data, next_addr_or_data; //used as select line for mux
 logic current_buff1_wr_en, next_buff1_wr_en;
 logic current_cnt_wr_en, next_cnt_wr_en;
@@ -132,7 +132,7 @@ end
 always_ff @(posedge i_clk, negedge i_nrst)
 begin
 	if(!i_nrst)
-		current_word_cntr <= 3'b010;
+		current_word_cntr <= 3'b000;
 	else
 		current_word_cntr <= next_word_cntr;
 end
@@ -248,26 +248,31 @@ begin
 			next_buff1_wr_en	= 1'b0;
 			next_cnt_wr_en		= 1'b0;
 			next_shift_wr_en	= 1'b1;
-			next_state			= TRANS1;
+			next_state			= START3;
 		end
-//============================================================		
-		TRANS1:
+//============================================================	
+		START3:
 		begin
 			next_shift_wr_en	= 1'b0;
+			next_state			= TRANS1;
+		end
+//============================================================	
+		TRANS1:
+		begin
+			
 			next_ack				= 1'b0;
 			next_state			= TRANS2;
 		end
 //============================================================		
 		TRANS2:
 		begin
-			next_bit_cntr		= current_bit_cntr - 1'b1;
 			next_state			= TRANS3;
 		end
 //============================================================		
 		TRANS3:
 		begin
-			
-			if(current_bit_cntr == 4'b0)
+			next_bit_cntr		= current_bit_cntr - 1'b1;
+			if(current_bit_cntr == 4'b0001)
 				next_state 		= RD_ACK1;
 			else
 				next_state		= TRANS1;
@@ -292,6 +297,7 @@ begin
 		RD_ACK3:
 		begin
 			next_ack				= o_sda;
+			next_shift_wr_en	= 1'b1;
 			if(current_word_cntr < word_cnt_reg)
 				next_state		= STOP1;
 			else
@@ -343,21 +349,27 @@ begin
 			scl_int = 1'b0;
 		end
 //============================================================		
+		START3:
+		begin
+			sda_int = 1'b0;
+			scl_int = 1'b0;
+		end
+//============================================================		
 		TRANS1:
 		begin
-			sda_int = shift_out_reg[current_bit_cntr - 1];
+			sda_int = shift_out_reg[current_bit_cntr - 1'b1];
 			scl_int = 1'b0;
 		end
 //============================================================		
 		TRANS2:
 		begin
-			sda_int = shift_out_reg[current_bit_cntr - 1];
+			sda_int = shift_out_reg[current_bit_cntr - 1'b1];
 			scl_int = 1'b1;
 		end
 //============================================================		
 		TRANS3:
 		begin
-			sda_int = shift_out_reg[current_bit_cntr - 1];
+			sda_int = shift_out_reg[current_bit_cntr - 1'b1];
 			scl_int = 1'b0;
 		end
 //============================================================		
