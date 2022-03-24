@@ -1,15 +1,15 @@
-module i2c_controller(	input	 logic i_clk,
-								input	 logic i_nrst,
-								input	 logic [7:0]i_data_write,
-								input	 logic [6:0]i_addr, 
-								input	 logic i_start,
-								input	 logic i_read_or_write,
-								input  logic [2:0]i_word_cnt,
-								inout	 logic o_scl,
-								inout	 logic o_sda
+module i2c_master(		input		logic i_clk,
+                        input		logic i_nrst,
+                        input		logic [7:0]i_data_write,
+                        input		logic [6:0]i_addr, 
+                        input		logic i_start,
+                        input		logic i_read_or_write,
+                        input		logic [2:0]i_word_cnt,
+                        inout		tri o_scl,
+                        inout		tri o_sda
 								);
 								
-typedef enum logic [3:0] {	IDLE,
+typedef enum logic [3:0] {	        IDLE,
 									START1,
 									START2,
 									START3,
@@ -60,6 +60,7 @@ logic [7:0]addr_or_data_mux;	//output of mux the choose between data or address
 
 assign o_sda = sda_int ? 1'bz : 1'b0;
 assign o_scl = scl_int ? 1'bz : 1'b0;
+
 
 assign addr_or_data_mux = current_addr_or_data	? data_out_buffer : addr_cmd_buffer;
 
@@ -155,7 +156,7 @@ end
 always_ff @(posedge i_clk, negedge i_nrst)
 begin
 	if(!i_nrst)
-		current_ack <= 1'b0;
+		current_ack <= 1'b1;
 	else
 		current_ack <= next_ack;
 end
@@ -210,26 +211,25 @@ end
 //===========================================================
 always_comb
 begin
-	next_word_cntr 	= current_word_cntr;
-	next_ack				= current_ack;
-	next_bit_cntr		= current_bit_cntr;
-	next_addr_or_data	= current_addr_or_data;
-	next_buff1_wr_en	= current_buff1_wr_en;
-	next_cnt_wr_en		= current_cnt_wr_en;
-	next_shift_wr_en	= current_shift_wr_en;
-
+	next_word_cntr     = current_word_cntr;
+	next_ack           = current_ack;
+	next_bit_cntr      = current_bit_cntr;
+	next_addr_or_data  = current_addr_or_data;
+	next_buff1_wr_en   = current_buff1_wr_en;
+	next_cnt_wr_en     = current_cnt_wr_en;
+	next_shift_wr_en   = current_shift_wr_en;
+    next_state          = current_state;
 //============================================================
 	case(current_state)
 		IDLE:
 		begin	
-			next_word_cntr 	= 3'b0;		//reset current word being shifted out
-			next_ack				= 1'b0;		//reset acknowledge
+			next_word_cntr 	    = 3'b0;		//reset current word being shifted out
+			next_ack			= 1'b1;		//reset acknowledge
 			next_bit_cntr		= 4'b1000;	//reset the bit pointer to MSb
-			next_addr_or_data = 1'b0;		//reset flag to send addr before data
+			next_addr_or_data   = 1'b0;		//reset flag to send addr before data
 			next_buff1_wr_en	= 1'b0;		//reset write enable to 0 to update {address,cmd} and data.
 			next_cnt_wr_en		= 1'b0;		//reset write enable to 0 to update count of bytes to be shifted out
-			next_shift_wr_en	= 1'b0;		//reset write enable to 0 to update the register of bits to be shifted out
-			
+			next_shift_wr_en	= 1'b0;		//reset write enable to 0 to update the register of bits to be shifted out	
 			if(i_start)
 				next_state 		= START1;
 			else
@@ -238,8 +238,8 @@ begin
 //============================================================		
 		START1:
 		begin
-			next_buff1_wr_en	= 1'b1;
-			next_cnt_wr_en		= 1'b1;
+			next_buff1_wr_en	= 1'b1;     //record {address,cmd} and data
+			next_cnt_wr_en		= 1'b1;      //record number of bytes to be shifted out
 			next_state			= START2;
 		end
 //============================================================		
@@ -247,7 +247,7 @@ begin
 		begin
 			next_buff1_wr_en	= 1'b0;
 			next_cnt_wr_en		= 1'b0;
-			next_shift_wr_en	= 1'b1;
+			next_shift_wr_en	= 1'b1;     //put {address,cmd} on the tx_shifter
 			next_state			= START3;
 		end
 //============================================================	
@@ -260,7 +260,7 @@ begin
 		TRANS1:
 		begin
 			
-			next_ack				= 1'b0;
+			next_ack			= 1'b1;
 			next_state			= TRANS2;
 		end
 //============================================================		
@@ -281,7 +281,7 @@ begin
 		RD_ACK1:
 		begin
 			next_bit_cntr		= 4'b1000;
-			if(current_ack == 1'b0)
+			if(current_ack == 1'b1)
 				next_state		= RD_ACK2;
 			else
 				next_state		= TRANS1;
@@ -328,7 +328,8 @@ end
 //===========================================================
 always_comb
 begin
-
+    sda_int = 1'b1;
+    scl_int = 1'b1;
 //============================================================
 	case(current_state)
 		IDLE:
