@@ -42,6 +42,8 @@ logic current_shift_wr_en, next_shift_wr_en;
 
 logic sda_int;
 logic scl_int;
+logic sda_reg;
+logic scl_reg;
 logic [7:0]shift_out_reg; 		//register to hold byte to be shifted out, it load from the output of addr_or_data mux
 logic [2:0]word_cnt_reg;		//register to hold the number of bytes to be shifted out
 logic [7:0]data_out_buffer;	//register to hold the data to be sent to i2c slave
@@ -58,11 +60,25 @@ logic [7:0]addr_or_data_mux;	//output of mux the choose between data or address
 //=================================================================================================
 //=================================================================================================
 
-assign o_sda = sda_int ? 1'bz : 1'b0;
-assign o_scl = scl_int ? 1'bz : 1'b0;
+assign o_sda = sda_reg ? 1'bz : 1'b0;
+assign o_scl = scl_reg ? 1'bz : 1'b0;
 
 
 assign addr_or_data_mux = current_addr_or_data	? data_out_buffer : addr_cmd_buffer;
+
+//buffer for sda and scl lines
+always_ff @(posedge i_clk, negedge i_nrst)
+    if(~i_nrst)
+        begin
+            sda_reg <=  1'b1;
+            scl_reg <=  1'b1;
+        end
+     else
+        begin
+            sda_reg <=  sda_int;
+            scl_reg <=  scl_int;
+        end
+        
 
 //===========================================================
 //update data buffer with data to be shift out
